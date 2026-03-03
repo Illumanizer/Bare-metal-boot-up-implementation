@@ -83,9 +83,13 @@ qemu-system-arm -M olimex-stm32-h405 -nographic \
 ```
 
 Expected output:
+
+<img width="824" height="189" alt="make run" src="https://github.com/user-attachments/assets/0dd32718-4aa6-4b68-b035-93fc7104250c" />
+
 ```
 Boot OK
 Data/BSS verified OK
+
 SysTick enabled, waiting for interrupts...
 SysTick count: 5
 SysTick count: 10
@@ -120,6 +124,7 @@ arm-none-eabi-gdb firmware.elf
 7. Reset_Handler calls `main()` via `bl main`
 8. `main()` prints boot messages through semihosting to confirm it was reached and that .data/.bss initialization worked correctly
 9. `main()` configures SysTick: sets reload value to 16000000-1 (1 second at 16 MHz HSI), clears counter, enables timer with interrupt
+
 10. SysTick_Handler fires every second, incrementing `tick_count` and printing a message every 5 ticks
 
 ---
@@ -128,6 +133,8 @@ arm-none-eabi-gdb firmware.elf
 
 Below are the GDB commands and expected results that verify each part
 of the assignment. Run these after connecting GDB to QEMU as described above.
+
+<img width="541" height="520" alt="gdb session" src="https://github.com/user-attachments/assets/a27a2c56-6472-4699-ae4f-3177958d1085" />
 
 ### Part A: Vector Table and Reset Handler
 

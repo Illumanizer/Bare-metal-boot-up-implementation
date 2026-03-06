@@ -6,7 +6,7 @@
  */
 
 
-ENTRY(Reset_Handler) // program starts from Reset_Handler
+ENTRY(Reset_Handler) /* program starts from Reset_Handler */
 
 /* 
   Memory regions on STM32F405 
@@ -20,10 +20,10 @@ MEMORY
     RAM   (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
 }
 
-// Top of stack (end of RAM)
+/*Top of stack (end of RAM) */
 _estack = ORIGIN(RAM) + LENGTH(RAM);   /* 0x20000000 + 0x20000 = 0x20020000 */
 
-// Flash location where initial .data values are stored 
+/* Flash location where initial .data values are stored */
 _sidata = LOADADDR(.data);
 
 SECTIONS
@@ -37,7 +37,7 @@ SECTIONS
         . = ALIGN(4);
     } > FLASH
 
-    // Program code 
+    /* Program code */
     .text :
     {
         . = ALIGN(4);
@@ -46,7 +46,7 @@ SECTIONS
         . = ALIGN(4);
     } > FLASH
 
-    // Read-only constants and strings 
+    /* Read-only constants and strings */
     .rodata :
     {
         . = ALIGN(4);
@@ -80,7 +80,7 @@ SECTIONS
         _ebss = .;              /* end of .bss — startup stops zeroing here */
     } > RAM
 
-    // Remove sections we don't need 
+    /* Remove sections we don't need */
     /DISCARD/ :
     {
         *(.ARM.exidx*)

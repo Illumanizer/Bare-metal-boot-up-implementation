@@ -1,78 +1,93 @@
-# Simple Makefile for building STM32F4 baremetal firmware
+# ===================================================================
+# Makefile - Build system for STM32F4 bare-metal firmware
+#
+# Targets:
+#   all       - Build firmware.bin (default)
+#   clean     - Remove all build artifacts
+#   debug     - Launch QEMU in GDB server mode
+#   run       - Run firmware on QEMU with semihosting
+#
+# Usage:
+#   make              (builds everything)
+#   make run          (builds and runs on QEMU)
+#   make debug        (builds and starts QEMU waiting for GDB)
+#   make clean        (removes .o, .elf, .bin, .map files)
+#
+# Author: Pranav
+# Course: Embedded Systems, Assignment 1
+# ===================================================================
 
-#  Toolchain 
-CC      = armnoneeabigcc
-OBJCOPY = armnoneeabiobjcopy
-SIZE    = armnoneeabisize
+# --- Toolchain ---
+CC      = arm-none-eabi-gcc
+OBJCOPY = arm-none-eabi-objcopy
+SIZE    = arm-none-eabi-size
 
-#  Project files 
+# --- Project files ---
 TARGET    = firmware
-
-
-# Convert source file names to object file names
 C_SRCS    = src/main.c
 S_SRCS    = startup/startup_stm32f4.s
-
-# custom linker script
 LD_SCRIPT = ld/linker.ld
 
-# Convert source file names to object file names
+# Object files: just swap the extensions
 OBJS = $(C_SRCS:.c=.o) $(S_SRCS:.s=.o)
 
-#  Compiler flags 
-# cortexm4 + thumb mode
-# O0 and g are useful for debugging
-CFLAGS = mcpu=cortexm4 mthumb O0 g \
-         Wall ffreestanding nostdlib \
-         mfpu=fpv4spd16 mfloatabi=hard
+# --- Compiler flags ---
+# -mcpu=cortex-m4   : target the M4 core
+# -mthumb           : use Thumb-2 instruction set
+# -O0               : no optimization (easier to debug)
+# -g                : include debug symbols for GDB
+# -Wall             : enable all warnings
+# -ffreestanding    : no hosted C environment
+# -nostdlib         : do not link standard library
+# -mfpu / -mfloat   : hardware FPU settings for F4
+CFLAGS = -mcpu=cortex-m4 -mthumb -O0 -g \
+         -Wall -ffreestanding -nostdlib \
+         -mfpu=fpv4-sp-d16 -mfloat-abi=hard
 
-# Assembly files get the same CPU/ABI flags
+# Assembly gets the same flags (same CPU/ABI settings)
 ASFLAGS = $(CFLAGS)
 
-#  Linker flags 
-LDFLAGS = T $(LD_SCRIPT) nostdlib Wl,Map=$(TARGET).map
+# Linker flags: use our custom script, generate map file
+LDFLAGS = -T $(LD_SCRIPT) -nostdlib -Wl,-Map=$(TARGET).map
 
-#  QEMU settings 
-QEMU         = qemusystemarm
-QEMU_MACHINE = olimexstm32h405      # the QEMU STM32F405 board model
-QEMU_FLAGS   = M $(QEMU_MACHINE) nographic \
-               semihostingconfig enable=on,target=native
+# --- QEMU settings ---
+QEMU      = qemu-system-arm
+QEMU_MACHINE = olimex-stm32-h405
+QEMU_FLAGS = -M $(QEMU_MACHINE) -nographic \
+             -semihosting-config enable=on,target=native
 
+# =========================== Rules ==============================
 
-
-#  Build targets 
-
-# default build target
+# Default target: produce the binary
 all: $(TARGET).bin
 
-# compile C files
+# Compile C source files to object files
 %.o: %.c
-	$(CC) $(CFLAGS) c $< o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# assemble .s files
+# Assemble .s files to object files
 %.o: %.s
-	$(CC) $(ASFLAGS) c $< o $@
+	$(CC) $(ASFLAGS) -c $< -o $@
 
-# link objects to create ELF
+# Link all objects into an ELF, then print size summary
 $(TARGET).elf: $(OBJS)
-	$(CC) $(OBJS) $(LDFLAGS) o $@
+	$(CC) $(OBJS) $(LDFLAGS) -o $@
 	$(SIZE) $@
 
-# convert ELF to raw binary
+# Extract raw binary from ELF (this is what QEMU loads)
 $(TARGET).bin: $(TARGET).elf
-	$(OBJCOPY) O binary $< $@
+	$(OBJCOPY) -O binary $< $@
 
-# run firmware in QEMU
+# Run firmware on QEMU with semihosting output
 run: $(TARGET).bin
-	$(QEMU) $(QEMU_FLAGS) kernel $(TARGET).bin
+	$(QEMU) $(QEMU_FLAGS) -kernel $(TARGET).bin
 
-# run QEMU waiting for GDB connection
+# Start QEMU paused, waiting for GDB connection on port 3333
 debug: $(TARGET).bin
-	$(QEMU) $(QEMU_FLAGS) kernel $(TARGET).bin S gdb tcp::3333
+	$(QEMU) $(QEMU_FLAGS) -kernel $(TARGET).bin -S -gdb tcp::3333
 
-# remove build files
+# Remove all generated files
 clean:
-	rm f $(OBJS) $(TARGET).elf $(TARGET).bin $(TARGET).map
-
+	rm -f $(OBJS) $(TARGET).elf $(TARGET).bin $(TARGET).map
 
 .PHONY: all clean run debug

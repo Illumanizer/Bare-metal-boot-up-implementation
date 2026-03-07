@@ -46,75 +46,94 @@ So overall the firmware uses about 724 bytes of flash and 12 bytes of SRAM (not 
 
 ---
 
-## How to Build and Run
 
-### Installing the tools
 
-On Linux:
-```
+## Installation
+
+### On Linux / WSL (Ubuntu)
+```bash
+sudo apt update
 sudo apt install qemu-system-arm gcc-arm-none-eabi gdb-multiarch make
+
 ```
 
-On macOS (what I used):
-```
+### On macOS
+
+```bash
 brew install qemu arm-none-eabi-gcc
+
 ```
 
 Check that everything works:
-```
+
+```bash
 arm-none-eabi-gcc --version
 qemu-system-arm --version
-```
-
-### Building
 
 ```
+
+---
+
+## Building and Running
+
+### Building the Firmware
+
+```bash
 make clean
 make
+
 ```
 
 This gives you three files:
-- `firmware.elf` — has debug symbols, used with GDB
-- `firmware.bin` — raw binary that QEMU loads
-- `firmware.map` — the linker map showing where everything ended up
+
+* `firmware.elf` — has debug symbols, used with GDB
+* `firmware.bin` — raw binary that QEMU loads
+* `firmware.map` — the linker map showing where everything ended up
 
 ### Running on QEMU
 
-```
+```bash
 make run
+
 ```
 
-Or if you want to type it out yourself:
-```
-qemu-system-arm -M olimex-stm32-h405 -nographic \
-    -semihosting-config enable=on,target=native \
-    -kernel firmware.bin
-```
+*(To exit QEMU, (1) Press and hold Ctrl, then press A. (2) Release both keys. (3) Press x.)*
 
-To exit QEMU, press `Ctrl-A` then `X` (press them separately, not together).
+---
 
-### Debugging with GDB
+## Debugging
 
-Open two terminals. In the first one, start QEMU in debug mode:
-```
+Open two terminals. In the first one, start QEMU in debug mode (it will pause and wait for a connection):
+
+```bash
 make debug
+
 ```
 
 In the second terminal, connect GDB:
-```
-# on linux
+
+**On Linux / WSL:**
+
+```bash
 gdb-multiarch firmware.elf
 
-# on mac (what I used)
+```
+
+**On macOS:**
+
+```bash
 arm-none-eabi-gdb firmware.elf
+
 ```
 
-Then inside GDB:
-```
+Then inside GDB, connect to the QEMU instance:
+
+```gdb
 (gdb) target remote :3333
+
 ```
 
-Now you can set breakpoints, step through code, inspect memory, etc.
+Now you can set breakpoints, step through code, and inspect memory.
 
 ---
 
@@ -129,7 +148,7 @@ Here's what happens from reset to main(), step by step:
 5. First thing Reset_Handler does is copy the .data section from flash to RAM. The initial values live in flash (at _sidata) but the variables need to be in RAM for read/write access, so we copy them over
 6. Next it zeros out the .bss section in RAM. The C standard says uninitialized globals should be 0, and since .bss doesn't have any stored values in flash, we just fill it with zeros
 7. Then Reset_Handler calls main() using bl
-8. Inside main(), we print some messages via semihosting to verify everything worked — "Boot OK" and "Data/BSS verified OK"
+8. Inside main(), we print some messages via semihosting to verify everything worked — "Main() Reached !!!" and ".data and .bss correctly initialised !!!!"
 9. main() sets up the SysTick timer: reload value of 16000000-1 (gives us a 1 second period at the default 16 MHz HSI clock), enables the counter and its interrupt
 10. From here, SysTick_Handler fires every second and increments a counter. Every 5th tick it prints the count via semihosting
 
@@ -137,23 +156,27 @@ Here's what happens from reset to main(), step by step:
 
 ## GDB Evidence
 
-All the evidence below is from an actual GDB session on my machine. I've also included screenshots (gdb_session.png and make_run.png).
+All the evidence below is from an actual GDB session. I've also included screenshots (gdb_session.png and make_run.png).
 
 ### Part A — Vector Table and Reset Handler
 
 Checking what's at the start of flash:
-```
+
+```gdb
 (gdb) x/2xw 0x08000000
-0x8000000 <g_pfnVectors>:       0x20020000      0x08000201
+0x8000000 <g_pfnVectors>:       0x20020000      0x08000215
+
 ```
 
-First word (0x20020000) is the initial stack pointer — top of our 128K RAM. Second word (0x08000201) is the Reset_Handler address. The 1 at the end is the Thumb bit, which has to be set or the processor would fault.
+First word (0x20020000) is the initial stack pointer — top of our 128K RAM. Second word (0x08000215) is the Reset_Handler address. The 5 at the end means the Thumb bit is set (actual address is 0x08000214), which has to be set or the processor would fault.
 
 Checking registers right after reset:
-```
+
+```gdb
 (gdb) info registers sp pc
 sp             0x20020000          0x20020000
-pc             0x8000200           0x8000200 <Reset_Handler>
+pc             0x8000214           0x8000214 <Reset_Handler>
+
 ```
 
 SP got loaded from the vector table correctly and PC is at Reset_Handler. Looks good.
@@ -161,65 +184,60 @@ SP got loaded from the vector table correctly and PC is at Reset_Handler. Looks 
 ### Part B — Runtime Initialization
 
 Setting a breakpoint at main and checking our test variables:
-```
+
+```gdb
 (gdb) break main
-Breakpoint 1 at 0x80001b4: file src/main.c, line 152.
+Breakpoint 1 at 0x8000172: file src/main.c, line 141.
 (gdb) continue
 Continuing.
-Breakpoint 1, main () at src/main.c:152
-152         sh_puts("Boot OK\r\n");
+
+Breakpoint 1, main () at src/main.c:141
+141         sh_puts("Main() Reached !!! \r\n");
 (gdb) print initialized
 $1 = 123
 (gdb) print uninitialized
 $2 = 0
+
 ```
 
 `initialized` is 123, which means the .data copy from flash to RAM worked. `uninitialized` is 0, meaning the .bss zeroing worked too. If either of these were wrong, the startup code would be broken.
 
 ### Part C — Linker Script
 
-The map file (firmware.map, included in the submission) shows everything ended up in the right place:
+The map file (`firmware.map`, included in the submission) shows everything ended up in the right place:
 
-- Vector table is at 0x08000000 which is the start of flash — this is where the hardware looks on reset, so it has to be here
-- The .data section has two addresses: its LMA (load address) is 0x080002D0 in flash where the initial values are stored, and its VMA (runtime address) is 0x20000000 in RAM where the variables actually live. The startup code bridges this gap by copying from one to the other.
-- Total flash used is about 724 bytes, SRAM is 12 bytes plus the stack
+* Vector table is at 0x08000000 which is the start of flash — this is where the hardware looks on reset, so it has to be here.
+* The `.data` section has two addresses: its LMA (load address) is 0x080002D0 in flash where the initial values are stored, and its VMA (runtime address) is 0x20000000 in RAM where the variables actually live. The startup code bridges this gap by copying from one to the other.
 
 ### Part D — Observable Output
 
-Running `make run` gives this output in the terminal (see make_run.png):
-
-```
-Boot OK
-Data/BSS verified OK
-SysTick enabled, waiting for interrupts...
-SysTick count: 5
-SysTick count: 10
-SysTick count: 15
-...
-```
-
-"Boot OK" proves we reached main(). "Data/BSS verified OK" means the if-check in main() passed — initialized was 123 and uninitialized was 0. The SysTick messages show the interrupt is firing and printing periodically.
+Running `make run` gives observable output in the terminal proving execution reached `main()` and properly verified the initialized values. The SysTick messages show the interrupt is firing and printing periodically.
 
 ### Part E — SysTick Interrupt
 
-```
+```gdb
 (gdb) break SysTick_Handler
-Breakpoint 2 at 0x8000122: file src/main.c, line 110.
+Breakpoint 2 at 0x8000154: file src/main.c, line 128.
 (gdb) continue
 Continuing.
-Breakpoint 2, SysTick_Handler () at src/main.c:110
-110         tick_count++;
+
+Breakpoint 2, SysTick_Handler () at src/main.c:128
+128         tick_count++;   /* that's it. keep ISRs short and simple */
 (gdb) print tick_count
 $3 = 0
 (gdb) continue
 Continuing.
-Breakpoint 2, SysTick_Handler () at src/main.c:110
-110         tick_count++;
+
+Breakpoint 2, SysTick_Handler () at src/main.c:128
+128         tick_count++;   /* that's it. keep ISRs short and simple */
 (gdb) print tick_count
 $4 = 1
+
 ```
 
-tick_count is 0 on the first break because GDB stops at the start of the function, before tick_count++ runs. On the second break it's 1, confirming the first increment happened. The periodic semihosting output (see Part D) also shows the interrupt keeps firing.
+`tick_count` is 0 on the first break because GDB stops at the start of the function, before `tick_count++` runs. On the second break it's 1, confirming the first increment happened.
+
+---
 
 ### Screenshots
 

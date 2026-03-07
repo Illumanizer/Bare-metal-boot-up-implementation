@@ -1,8 +1,15 @@
 # STM32F4 Bare-Metal Boot on QEMU
 
-This project implements a bare-metal boot sequence for the STM32F405 (Cortex-M4F) microcontroller, emulated using QEMU. The firmware goes from reset all the way to main() with a working SysTick interrupt. No HAL, no CMSIS functions, no RTOS — everything is written from scratch.
+**Team Members**
 
-Built and tested on macOS (Apple Silicon) using the ARM GNU toolchain and QEMU.
+| Name | Roll Number |
+|-----|-------------|
+| Pranav Singh Sehgal | 2025EET2476 |
+| Jayesh Haridas Shewale | 2025EET2483 |
+
+This project implements a bare-metal boot sequence for the STM32F405 (Cortex-M4F) microcontroller, emulated using QEMU. The firmware goes from reset all the way to main() with a working SysTick interrupt. No HAL, no CMSIS functions, no RTOS are used . Everything is written from scratch.
+
+Built and tested on macOS using the ARM GNU toolchain and QEMU.
 
 ---
 
@@ -15,7 +22,7 @@ The STM32F405 has 1MB of flash starting at 0x08000000 and 128KB of SRAM starting
 | FLASH  | `0x08000000` | `0x080FFFFF` | 1 MB   |
 | SRAM   | `0x20000000` | `0x2001FFFF` | 128 KB |
 
-The stack pointer is set to `0x20020000` which is the top of SRAM. ARM stacks grow downward so this gives us the full 128KB to work with (minus whatever .data and .bss use at the bottom).
+The stack pointer is set to `0x20020000` which is the top of SRAM. ARM stacks grow downward so this gives us the full 128KB to work with (excluding whatever .data and .bss use at the bottom).
 
 ### Linker Symbols
 
@@ -97,7 +104,7 @@ make run
 
 ```
 
-*(To exit QEMU, (1) Press and hold Ctrl, then press A. (2) Release both keys. (3) Press x.)*
+*(To exit QEMU, (1) Press and hold Ctrl, then press A. (2) Press x.)*
 
 ---
 
@@ -156,7 +163,7 @@ Here's what happens from reset to main(), step by step:
 
 ## GDB Evidence
 
-All the evidence below is from an actual GDB session. I've also included screenshots (gdb_session.png and make_run.png).
+All the evidence below is from an actual GDB session. I've also included screenshots .
 
 ### Part A — Vector Table and Reset Handler
 
@@ -237,19 +244,41 @@ $4 = 1
 
 `tick_count` is 0 on the first break because GDB stops at the start of the function, before `tick_count++` runs. On the second break it's 1, confirming the first increment happened.
 
+## Screenshots
+
+### QEMU Semihosting Output
+
+<p align="center">
+<b>Mac</b><br>
+<img src="https://github.com/user-attachments/assets/0dd32718-4aa6-4b68-b035-93fc7104250c" width="800">
+</p>
+
+<p align="center">
+<b>Linux / WSL</b><br>
+<img src="https://github.com/user-attachments/assets/14ed5c04-ab6c-469e-a320-4f2d8dfea88a" width="800">
+</p>
+
 ---
 
-### Screenshots
+### GDB Debugging Session
 
-GDB session:
-
-<img width="541" height="520" alt="gdb session" src="https://github.com/user-attachments/assets/a27a2c56-6472-4699-ae4f-3177958d1085" />
-
-QEMU semihosting output:
-
-<img width="824" height="189" alt="make run" src="https://github.com/user-attachments/assets/0dd32718-4aa6-4b68-b035-93fc7104250c" />
+<p align="center">
+<img src="https://github.com/user-attachments/assets/a27a2c56-6472-4699-ae4f-3177958d1085" width="650">
+</p>
 
 ---
+
+### Debugging Terminals
+
+<p align="center">
+<b>Terminal 1 (QEMU running with GDB server)</b><br>
+<img src="https://github.com/user-attachments/assets/a66e69e0-f457-424a-a243-2f6975d1e979" width="650">
+</p>
+
+<p align="center">
+<b>Terminal 2 (GDB connected to QEMU)</b><br>
+<img src="https://github.com/user-attachments/assets/c8e922ac-cc98-4028-9e5b-7563494189d8" width="650">
+</p>
 
 ## Files
 
